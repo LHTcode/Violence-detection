@@ -2,12 +2,15 @@ import random
 import time
 import torch
 import os
+import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import DataLoader
 from LoadData import VideoDataset
 from Model import R3D_18
 from torch import nn
 from torch import optim
+import torchvision
+import torchvision.transforms as T
 
 # train+valid模块
 def train_model(model, Dataloader, loss_func, optim, epochs):
@@ -92,16 +95,78 @@ def train_model(model, Dataloader, loss_func, optim, epochs):
             writer.add_scalar("{:s}/Precision".format("Train" if phase == "train" else "Valid"), precision, epoch if phase == "train" else val_epoch)  # 制作两张图，一个Train一个Valid
     writer.close()
 
-def inference_model(long_vedio_path, model):
-    import cv2
+@torch.no_grad()        # 禁用此函数的梯度计算
+def inference_model(long_vedio_path, model, video_size):
+    # 数据准备
     assert os.path.exists(long_vedio_path), "Vedio path may be wrong!"
-    long_vedio = cv2.VideoCapture(long_vedio_path)
-    fps = long_vedio.get(cv2.CAP_PROP_FPS)
+    # 按照时间间隔来取帧
+    frames, _, info = torchvision.io.read_video(long_vedio_path, pts_unit="sec")
+    fps = info["video_fps"]
+    sampling_rate = 2   # 采样率是每采样8帧送入推理网络所需的时间, 单位：s
+    sampling_scale = int(((sampling_rate * fps) // video_size) * video_size)
 
+    frames = frames[0: ((frames.shape[0] // sampling_scale) * sampling_scale), :, :, :] # 如果帧数不能整除则去掉末尾的一些帧
+    # reshape to [time_batch, sampling_scale, H, W, C]
+    frames = frames.reshape((int(frames.shape[0] / sampling_scale), sampling_scale, frames.shape[1], frames.shape[2], frames.shape[3]))
 
+    import itertools
+    # 数据预处理
+    basic_transform = T.Compose(
+        [
+            T.Resize(size=[128, 171]),
+            T.CenterCrop(112),
+            T.Normalize([0.43216, 0.394666, 0.37645], [0.22803, 0.22145, 0.216989])
+        ]
+    )
+    frames = frames.permute(0, 1, 4, 2, 3).to(torch.float64)
+    # input_frames_list = [(frame for frame in itertools.islice(fragment, 0, sampling_scale, int(sampling_scale / video_size)))
+    #                     for fragment in frames]
+    input_frames = torch.zeros((1, 3, int(sampling_scale / video_size) + 1, 112, 112))
+    for slice in frames:
+        input_frames_list = []
+        for frame in itertools.islice(slice, 0, sampling_scale, int(sampling_scale / video_size)):
+            input_frames_list.append(basic_transform(frame))
+        temp = torch.stack(input_frames_list, 0).permute(1, 0, 2, 3).unsqueeze(0)
+        input_frames = torch.cat((input_frames, temp), dim=0)
+    # 标签提取
+    import cv2
+    import json
+    root_path = os.path.abspath("RWF-2000")
+    labels = {}
+    with open(os.path.join(root_path, "violent_classification.json"), 'r') as f:
+        classes = f.read()
+        labels = json.loads(classes)
+
+    # 开始推理
+    output_frames = []
+    for input_frame in input_frames[1: ,:, :, :, :]:
+        input_frame = input_frame.unsqueeze(0)  # BCTHW
+        model_path = "models/best_model.pt"
+        device = model.device
+        model_dict = torch.load(model_path, map_location=torch.device(device))
+        model.load_state_dict(model_dict["state_dict"])
+
+        output = model(input_frame)
+        _, pred = torch.max(output, 1)
+        # 绘制文字
+        output_frame = input_frame.squeeze(0).permute(1, 2, 3, 0).numpy().astype(np.float32)   # switch to [T,H,W,C]
+        org = (50, 50)
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        fontScale = 1
+        color = (255, 0, 0)
+        thickness = 2
+        for idx, image in enumerate(output_frame):
+            image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+            output_frame[idx] = cv2.putText(image, labels[str(pred.item())], org, font,
+                            fontScale, color, thickness, cv2.LINE_AA)
+            cv2.imshow("Frame", output_frame[idx])
+            cv2.waitKey(25)
+        output_frames.append(output_frame)
 
 
 if __name__ == "__main__":
+
+    state = "inference"
     # 制作数据集
     root_path = os.path.abspath("RWF-2000")
     batch_size = 8
@@ -110,38 +175,40 @@ if __name__ == "__main__":
 
     # 制作模型
     model = R3D_18(pretrained=True)     # 使用训练好的参数作为初始化参数
-    # 设置需要训练的参数
-    '''
-    layers_need_to_train    ==  0   --> 训练所有层
-                            ==  1   --> 仅训练全连接层
-                            ==  2   --> 待更新...
-    '''
-    layers_need_to_train = 0
-    param_need_to_update = []
-    print("Params need to learn:")
-    if layers_need_to_train == 1:
-        for name, param in model.named_parameters():
-            if name == "model.fc.weight" or name == "model.fc.bias":
+
+    if state == "train":
+        # 设置需要训练的参数
+        '''
+        layers_need_to_train    ==  0   --> 训练所有层
+                                ==  1   --> 仅训练全连接层
+                                ==  2   --> 待更新...
+        '''
+        layers_need_to_train = 0
+        param_need_to_update = []
+        print("Params need to learn:")
+        if layers_need_to_train == 1:
+            for name, param in model.named_parameters():
+                if name == "model.fc.weight" or name == "model.fc.bias":
+                    param.requires_grad = True
+                    param_need_to_update.append(param)
+                    print(name)
+                    continue
+                param.requires_grad = False
+        elif layers_need_to_train == 2:
+            pass
+        else:
+            for name, param in model.named_parameters():
                 param.requires_grad = True
                 param_need_to_update.append(param)
                 print(name)
-                continue
-            param.requires_grad = False
-    elif layers_need_to_train == 2:
-        pass
-    else:
-        for name, param in model.named_parameters():
-            param.requires_grad = True
-            param_need_to_update.append(param)
-            print(name)
-        print('\n')
-    # 制作损失函数和优化器
-    loss_func = nn.CrossEntropyLoss()
-    lr = 1e-4
-    optim = optim.Adam(param_need_to_update, lr)
-    # 取出设备
-    device = model.device
+            print('\n')
+        # 制作损失函数和优化器
+        loss_func = nn.CrossEntropyLoss()
+        lr = 1e-4
+        optim = optim.Adam(param_need_to_update, lr)
+        # 开始训练
+        train_model(model,Dataloader,loss_func,optim,epochs=30)
 
-    # 开始训练
-    # train_model(model,Dataloader,loss_func,optim,epochs=30)
-
+    elif state == "inference":
+        vedio_size = 8  # 模型接受输入的T大小
+        inference_model("/home/lihanting/PycharmProjects/DeepLearning/RWF-2000/train/0/0_DzLlklZa0_0.avi", model, vedio_size)

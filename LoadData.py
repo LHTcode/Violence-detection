@@ -50,7 +50,7 @@ class VideoDataset(Dataset):
 
         # 每个数据都要求取出相同的帧数，故采用间隔取样的方法
         if frames.size(dim=0) % self.video_size != 0:   # 如果帧数不能整除则去掉末尾的一些帧
-            frames = frames[0:(frames.size(dim=0)//self.video_size)*self.video_size,:,:,:]
+            frames = frames[0: (frames.size(dim=0) // self.video_size) * self.video_size, :, :, :]
         output_frames = frames[::int(frames.size(dim=0) / self.video_size), :, :, :]        # 间隔采样的采样帧数是 处理后的总帧数/期望获得的帧数
         # 执行一些必要的 transform
         output_frames = self.basicalTransform(output_frames)
@@ -73,6 +73,7 @@ class VideoDataset(Dataset):
                 video_names.append(os.path.join(data_path,label,video_name))
                 targets.append(int(label))
         return video_names,targets
+
 
     def basicalTransform(self,frames):
         frames = frames.permute(0, 3, 1, 2).to(torch.float64)   # convert to 'TCHW'
