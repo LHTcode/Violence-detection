@@ -100,14 +100,14 @@ def inference_model(long_vedio_path, model, video_size):
     # 数据准备
     assert os.path.exists(long_vedio_path), "Vedio path may be wrong!"
     # 按照时间间隔来取帧
-    frames, _, info = torchvision.io.read_video(long_vedio_path, pts_unit="sec")
+    origin_frames, _, info = torchvision.io.read_video(long_vedio_path, pts_unit="sec")
     fps = info["video_fps"]
     sampling_rate = 2   # 采样率是每采样8帧送入推理网络所需的时间, 单位：s
     sampling_scale = int(((sampling_rate * fps) // video_size) * video_size)
 
-    frames = frames[0: ((frames.shape[0] // sampling_scale) * sampling_scale), :, :, :] # 如果帧数不能整除则去掉末尾的一些帧
+    origin_frames = origin_frames[0: ((origin_frames.shape[0] // sampling_scale) * sampling_scale), :, :, :] # 如果帧数不能整除则去掉末尾的一些帧
     # reshape to [time_batch, sampling_scale, H, W, C]
-    frames = frames.reshape((int(frames.shape[0] / sampling_scale), sampling_scale, frames.shape[1], frames.shape[2], frames.shape[3]))
+    origin_frames = origin_frames.reshape((int(origin_frames.shape[0] / sampling_scale), sampling_scale, origin_frames.shape[1], origin_frames.shape[2], origin_frames.shape[3]))
 
     import itertools
     # 数据预处理
@@ -118,16 +118,16 @@ def inference_model(long_vedio_path, model, video_size):
             T.Normalize([0.43216, 0.394666, 0.37645], [0.22803, 0.22145, 0.216989])
         ]
     )
-    frames = frames.permute(0, 1, 4, 2, 3).to(torch.float64)
-    # input_frames_list = [(frame for frame in itertools.islice(fragment, 0, sampling_scale, int(sampling_scale / video_size)))
-    #                     for fragment in frames]
+    temp_frames = torch.clone(origin_frames.permute(0, 1, 4, 2, 3)).to(torch.float64)    # switch to [time_batch, sampling_scale, C, H, W]
+
     input_frames = torch.zeros((1, 3, int(sampling_scale / video_size) + 1, 112, 112))
-    for slice in frames:
-        input_frames_list = []
+    for slice in temp_frames:
+        temp_list = []
         for frame in itertools.islice(slice, 0, sampling_scale, int(sampling_scale / video_size)):
-            input_frames_list.append(basic_transform(frame))
-        temp = torch.stack(input_frames_list, 0).permute(1, 0, 2, 3).unsqueeze(0)
+            temp_list.append(basic_transform(frame))
+        temp = torch.stack(temp_list, 0).permute(1, 0, 2, 3).unsqueeze(0)
         input_frames = torch.cat((input_frames, temp), dim=0)
+
     # 标签提取
     import cv2
     import json
@@ -139,7 +139,8 @@ def inference_model(long_vedio_path, model, video_size):
 
     # 开始推理
     output_frames = []
-    for input_frame in input_frames[1: ,:, :, :, :]:
+    input_frames = input_frames[1: ,:, :, :, :]
+    for outer_idx, input_frame in enumerate(input_frames):
         input_frame = input_frame.unsqueeze(0)  # BCTHW
         model_path = "models/best_model.pt"
         device = model.device
@@ -148,20 +149,24 @@ def inference_model(long_vedio_path, model, video_size):
 
         output = model(input_frame)
         _, pred = torch.max(output, 1)
+        print(output)
+        print(pred)
         # 绘制文字
-        output_frame = input_frame.squeeze(0).permute(1, 2, 3, 0).numpy().astype(np.float32)   # switch to [T,H,W,C]
-        org = (50, 50)
+        output_frame = origin_frames[outer_idx].numpy()
+        org = (150, 150)
         font = cv2.FONT_HERSHEY_SIMPLEX
-        fontScale = 1
-        color = (255, 0, 0)
-        thickness = 2
-        for idx, image in enumerate(output_frame):
+        fontScale = 3
+        color = (0, 0, 255)
+        thickness = 3
+        for inner_idx, image in enumerate(output_frame):
             image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-            output_frame[idx] = cv2.putText(image, labels[str(pred.item())], org, font,
+            output_frame[inner_idx] = cv2.putText(image, labels[str(pred.item())], org, font,
                             fontScale, color, thickness, cv2.LINE_AA)
-            cv2.imshow("Frame", output_frame[idx])
+            cv2.imshow("Frame", output_frame[inner_idx])
             cv2.waitKey(25)
         output_frames.append(output_frame)
+
+
 
 
 if __name__ == "__main__":
@@ -211,4 +216,4 @@ if __name__ == "__main__":
 
     elif state == "inference":
         vedio_size = 8  # 模型接受输入的T大小
-        inference_model("/home/lihanting/PycharmProjects/DeepLearning/RWF-2000/train/0/0_DzLlklZa0_0.avi", model, vedio_size)
+        inference_model("/home/lihanting/PycharmProjects/DeepLearning/RWF-2000/train/0/1O4KGHbRt3M_0.avi", model, vedio_size)
