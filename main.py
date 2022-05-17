@@ -24,7 +24,7 @@ def train_model(model, Dataloader, loss_func, optim, epochs):
     local_time_dir = ''
     for epoch in range(epochs):
         print("Epoch:{:}".format(epoch))
-        for phase in ["valid"]:
+        for phase in ["train", "valid"]:
             runtime_loss = 0
             precision = 0
             if phase == "train":
@@ -98,20 +98,28 @@ def train_model(model, Dataloader, loss_func, optim, epochs):
             writer.add_scalar("{:s}/Precision".format("Train" if phase == "train" else "Valid"), precision, epoch if phase == "train" else val_epoch)  # 制作两张图，一个Train一个Valid
     writer.close()
 
+# 简单的推理端
 @torch.no_grad()        # 禁用此函数的梯度计算
 def inference_model(long_vedio_path, model, video_size):
+    import cv2
     model.eval()    # 这个设置一定要加上，会禁用一些跟训练相关的操作如Dropout，BatchNorm
 
+    long_vedio_path_list = os.listdir(long_vedio_path)
+    long_vedio_path_list.sort(key=lambda x: int(x.split("input")[1].split(".avi")[0]))
+    print(long_vedio_path_list)
+
     root_path = os.path.abspath("RWF-2000")
-    videos_path = os.path.join(root_path, "train", "0")
-    videos_path_list = os.listdir(videos_path)
-    for video_path in videos_path_list:
+    data_path = os.path.join(root_path, "long_video")
+    frameSize = (640, 360)
+    video_writer = cv2.VideoWriter('output_video.avi', cv2.VideoWriter_fourcc(*'DIVX'), 60, frameSize)
+
+    for long_vedio in long_vedio_path_list:
+        print("Now pred: {:s}".format(long_vedio.split("input")[1].split(".avi")[0]))
         # 数据准备
-        # assert os.path.exists(long_vedio_path), "Vedio path {:s} may be wrong!".format(video_path)
-        assert os.path.exists(os.path.join(videos_path, video_path)), "Vedio path {:s} may be wrong!".format(video_path)
+        input_abspath = os.path.join(data_path, long_vedio)
+        assert os.path.exists(input_abspath), "Vedio path {:s} may be wrong!".format(input_abspath)
         # 按照时间间隔来取帧
-        # origin_frames, _, info = torchvision.io.read_video(long_vedio_path, pts_unit="sec")
-        origin_frames, _, info = torchvision.io.read_video(os.path.join(videos_path, video_path), pts_unit="sec")
+        origin_frames, _, info = torchvision.io.read_video(input_abspath, pts_unit="sec")
 
         fps = info["video_fps"]
         sampling_rate = 2   # 采样率是每采样8帧送入推理网络所需的时间, 单位：s
@@ -141,7 +149,6 @@ def inference_model(long_vedio_path, model, video_size):
             input_frames = torch.cat((input_frames, temp), dim=0)
 
         # 标签提取
-        import cv2
         import json
         labels = {}
         with open(os.path.join(root_path, "violent_classification.json"), 'r') as f:
@@ -159,13 +166,11 @@ def inference_model(long_vedio_path, model, video_size):
             model.load_state_dict(model_dict["state_dict"])
             output = model(input_frame)
             _, pred = torch.max(output, 1)
-            print(output)
-            print(pred)
             # 绘制文字
             output_frame = origin_frames[outer_idx].numpy()
-            org = (150, 150)
+            org = (50, 50)
             font = cv2.FONT_HERSHEY_SIMPLEX
-            fontScale = 3
+            fontScale = 1
             color = (0, 0, 255)
             thickness = 3
             for inner_idx, image in enumerate(output_frame):
@@ -173,9 +178,9 @@ def inference_model(long_vedio_path, model, video_size):
                 output_frame[inner_idx] = cv2.putText(image, labels[str(pred.item())], org, font,
                                 fontScale, color, thickness, cv2.LINE_AA)
                 cv2.imshow("Frame", output_frame[inner_idx])
+                video_writer.write(output_frame[inner_idx])
                 cv2.waitKey(25)
-            output_frames.append(output_frame)
-
+    video_writer.release()
 
 
 
@@ -184,7 +189,7 @@ if __name__ == "__main__":
     state = "inference"
     # 制作数据集
     root_path = os.path.abspath("RWF-2000")
-    batch_size = 1
+    batch_size = 8
     dataset = {x: VideoDataset(root_path, video_size=8, phase=x, transform=None) for x in ["train", "valid"]}
     Dataloader = {x: DataLoader(dataset[x], batch_size, shuffle=True) for x in ["train", "valid"]}
 
@@ -226,4 +231,4 @@ if __name__ == "__main__":
 
     elif state == "inference":
         vedio_size = 8  # 模型接受输入的T大小
-        inference_model("/home/lihanting/PycharmProjects/DeepLearning/RWF-2000/train/0/1O4KGHbRt3M_0.avi", model, vedio_size)
+        inference_model("/home/lihanting/PycharmProjects/DeepLearning/RWF-2000/long_video", model, vedio_size)
