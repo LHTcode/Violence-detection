@@ -24,7 +24,7 @@ def train_model(model, Dataloader, loss_func, optim, epochs):
     local_time_dir = ''
     for epoch in range(epochs):
         print("Epoch:{:}".format(epoch))
-        for phase in ["train","valid"]:
+        for phase in ["valid"]:
             runtime_loss = 0
             precision = 0
             if phase == "train":
@@ -32,7 +32,8 @@ def train_model(model, Dataloader, loss_func, optim, epochs):
                 print("Training...")
                 print("Learning rate = {}".format(optim.state_dict()['param_groups'][0]['lr']))
             elif phase == "valid" and is_new_model == 1:    # 只有当模型参数被更新的时候才计算valid
-                model_path = "models/{:s}/model{:s}.pt".format(local_time_dir,str(val_epoch))
+                # model_path = "models/{:s}/model{:s}.pt".format(local_time_dir,str(val_epoch))
+                model_path = "models/best_model.pt"
                 if os.path.exists(model_path):
                     model_dict = torch.load(model_path,map_location=torch.device(device))
                     model.load_state_dict(model_dict["state_dict"])
@@ -63,13 +64,15 @@ def train_model(model, Dataloader, loss_func, optim, epochs):
                         loss.backward()
                         optim.step()
                         train_count += 1
-                    runtime_loss += loss
+                        runtime_loss += loss
                     if (phase == "train" and train_count % 5 == 0):  # 每5次迭代输出一次平均loss
                         writer.add_scalar("Train/Loss", runtime_loss, train_count )
                         print("runtime_loss={}".format(runtime_loss / 5))
                         runtime_loss = 0
                 # 计算精度
                 _, preds = torch.max(output, dim=1)
+                print(output)
+                print(preds)
                 # 展示正确识别的图片
                 VideoDataset.showData(video,[writer],preds,target)
 
@@ -97,74 +100,81 @@ def train_model(model, Dataloader, loss_func, optim, epochs):
 
 @torch.no_grad()        # 禁用此函数的梯度计算
 def inference_model(long_vedio_path, model, video_size):
-    # 数据准备
-    assert os.path.exists(long_vedio_path), "Vedio path may be wrong!"
-    # 按照时间间隔来取帧
-    origin_frames, _, info = torchvision.io.read_video(long_vedio_path, pts_unit="sec")
-    fps = info["video_fps"]
-    sampling_rate = 2   # 采样率是每采样8帧送入推理网络所需的时间, 单位：s
-    sampling_scale = int(((sampling_rate * fps) // video_size) * video_size)
+    model.eval()    # 这个设置一定要加上，会禁用一些跟训练相关的操作如Dropout，BatchNorm
 
-    origin_frames = origin_frames[0: ((origin_frames.shape[0] // sampling_scale) * sampling_scale), :, :, :] # 如果帧数不能整除则去掉末尾的一些帧
-    # reshape to [time_batch, sampling_scale, H, W, C]
-    origin_frames = origin_frames.reshape((int(origin_frames.shape[0] / sampling_scale), sampling_scale, origin_frames.shape[1], origin_frames.shape[2], origin_frames.shape[3]))
-
-    import itertools
-    # 数据预处理
-    basic_transform = T.Compose(
-        [
-            T.Resize(size=[128, 171]),
-            T.CenterCrop(112),
-            T.Normalize([0.43216, 0.394666, 0.37645], [0.22803, 0.22145, 0.216989])
-        ]
-    )
-    temp_frames = torch.clone(origin_frames.permute(0, 1, 4, 2, 3)).to(torch.float64)    # switch to [time_batch, sampling_scale, C, H, W]
-
-    input_frames = torch.zeros((1, 3, int(sampling_scale / video_size) + 1, 112, 112))
-    for slice in temp_frames:
-        temp_list = []
-        for frame in itertools.islice(slice, 0, sampling_scale, int(sampling_scale / video_size)):
-            temp_list.append(basic_transform(frame))
-        temp = torch.stack(temp_list, 0).permute(1, 0, 2, 3).unsqueeze(0)
-        input_frames = torch.cat((input_frames, temp), dim=0)
-
-    # 标签提取
-    import cv2
-    import json
     root_path = os.path.abspath("RWF-2000")
-    labels = {}
-    with open(os.path.join(root_path, "violent_classification.json"), 'r') as f:
-        classes = f.read()
-        labels = json.loads(classes)
+    videos_path = os.path.join(root_path, "train", "0")
+    videos_path_list = os.listdir(videos_path)
+    for video_path in videos_path_list:
+        # 数据准备
+        # assert os.path.exists(long_vedio_path), "Vedio path {:s} may be wrong!".format(video_path)
+        assert os.path.exists(os.path.join(videos_path, video_path)), "Vedio path {:s} may be wrong!".format(video_path)
+        # 按照时间间隔来取帧
+        # origin_frames, _, info = torchvision.io.read_video(long_vedio_path, pts_unit="sec")
+        origin_frames, _, info = torchvision.io.read_video(os.path.join(videos_path, video_path), pts_unit="sec")
 
-    # 开始推理
-    output_frames = []
-    input_frames = input_frames[1: ,:, :, :, :]
-    for outer_idx, input_frame in enumerate(input_frames):
-        input_frame = input_frame.unsqueeze(0)  # BCTHW
-        model_path = "models/best_model.pt"
-        device = model.device
-        model_dict = torch.load(model_path, map_location=torch.device(device))
-        model.load_state_dict(model_dict["state_dict"])
+        fps = info["video_fps"]
+        sampling_rate = 2   # 采样率是每采样8帧送入推理网络所需的时间, 单位：s
+        sampling_scale = int(((sampling_rate * fps) // video_size) * video_size)
 
-        output = model(input_frame)
-        _, pred = torch.max(output, 1)
-        print(output)
-        print(pred)
-        # 绘制文字
-        output_frame = origin_frames[outer_idx].numpy()
-        org = (150, 150)
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        fontScale = 3
-        color = (0, 0, 255)
-        thickness = 3
-        for inner_idx, image in enumerate(output_frame):
-            image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-            output_frame[inner_idx] = cv2.putText(image, labels[str(pred.item())], org, font,
-                            fontScale, color, thickness, cv2.LINE_AA)
-            cv2.imshow("Frame", output_frame[inner_idx])
-            cv2.waitKey(25)
-        output_frames.append(output_frame)
+        origin_frames = origin_frames[0: ((origin_frames.shape[0] // sampling_scale) * sampling_scale), :, :, :] # 如果帧数不能整除则去掉末尾的一些帧
+        # reshape to [time_batch, sampling_scale, H, W, C]
+        origin_frames = origin_frames.reshape((int(origin_frames.shape[0] / sampling_scale), sampling_scale, origin_frames.shape[1], origin_frames.shape[2], origin_frames.shape[3]))
+
+        import itertools
+        # 数据预处理
+        basic_transform = T.Compose(
+            [
+                T.Resize(size=[128, 171]),
+                T.CenterCrop(112),
+                T.Normalize([0.43216, 0.394666, 0.37645], [0.22803, 0.22145, 0.216989])
+            ]
+        )
+        temp_frames = torch.clone(origin_frames.permute(0, 1, 4, 2, 3)).to(torch.float64)    # switch to [time_batch, sampling_scale, C, H, W]
+
+        input_frames = torch.zeros((1, 3, int(sampling_scale / video_size) + 1, 112, 112))
+        for slice in temp_frames:
+            temp_list = []
+            for frame in itertools.islice(slice, 0, sampling_scale, int(sampling_scale / video_size)):
+                temp_list.append(basic_transform(frame))
+            temp = torch.stack(temp_list, 0).permute(1, 0, 2, 3).unsqueeze(0)
+            input_frames = torch.cat((input_frames, temp), dim=0)
+
+        # 标签提取
+        import cv2
+        import json
+        labels = {}
+        with open(os.path.join(root_path, "violent_classification.json"), 'r') as f:
+            classes = f.read()
+            labels = json.loads(classes)
+
+        # 开始推理
+        output_frames = []
+        input_frames = input_frames[1: ,:, :, :, :]
+        for outer_idx, input_frame in enumerate(input_frames):
+            input_frame = input_frame.unsqueeze(0)  # BCTHW
+            model_path = "models/best_model.pt"
+            device = model.device
+            model_dict = torch.load(model_path, map_location=torch.device(device))
+            model.load_state_dict(model_dict["state_dict"])
+            output = model(input_frame)
+            _, pred = torch.max(output, 1)
+            print(output)
+            print(pred)
+            # 绘制文字
+            output_frame = origin_frames[outer_idx].numpy()
+            org = (150, 150)
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            fontScale = 3
+            color = (0, 0, 255)
+            thickness = 3
+            for inner_idx, image in enumerate(output_frame):
+                image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+                output_frame[inner_idx] = cv2.putText(image, labels[str(pred.item())], org, font,
+                                fontScale, color, thickness, cv2.LINE_AA)
+                cv2.imshow("Frame", output_frame[inner_idx])
+                cv2.waitKey(25)
+            output_frames.append(output_frame)
 
 
 
@@ -174,7 +184,7 @@ if __name__ == "__main__":
     state = "inference"
     # 制作数据集
     root_path = os.path.abspath("RWF-2000")
-    batch_size = 8
+    batch_size = 1
     dataset = {x: VideoDataset(root_path, video_size=8, phase=x, transform=None) for x in ["train", "valid"]}
     Dataloader = {x: DataLoader(dataset[x], batch_size, shuffle=True) for x in ["train", "valid"]}
 
