@@ -156,7 +156,6 @@ def inference_model(long_vedio_path, model, video_size):
             labels = json.loads(classes)
 
         # 开始推理
-        output_frames = []
         input_frames = input_frames[1: ,:, :, :, :]
         for outer_idx, input_frame in enumerate(input_frames):
             input_frame = input_frame.unsqueeze(0)  # BCTHW
@@ -170,11 +169,11 @@ def inference_model(long_vedio_path, model, video_size):
             output_frame = origin_frames[outer_idx].numpy()
             org = (50, 50)
             font = cv2.FONT_HERSHEY_SIMPLEX
-            fontScale = 1
-            color = (0, 0, 255)
+            fontScale = 1.5
             thickness = 3
             for inner_idx, image in enumerate(output_frame):
                 image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+                color = (0, 0, 255) if pred.item() == 1 else (0, 255, 0)
                 output_frame[inner_idx] = cv2.putText(image, labels[str(pred.item())], org, font,
                                 fontScale, color, thickness, cv2.LINE_AA)
                 cv2.imshow("Frame", output_frame[inner_idx])
