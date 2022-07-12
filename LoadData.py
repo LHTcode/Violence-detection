@@ -86,7 +86,7 @@ class VideoDataset(Dataset):
         return frames
     
     def getLabel(self) -> dict:
-        with open(os.path.join(self.root_path,"violent_classification.json"),'r') as f:
+        with open(os.path.join(self.root_path, "dataset/violent_classification.json"), 'r') as f:
             classes = f.read()
             labels = json.loads(classes)
         return labels
