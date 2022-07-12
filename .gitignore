@@ -1,7 +1,6 @@
 *.xml
 *.avi
 *.mp4
-*.json
 *.log
 *.pt
 events.out*
