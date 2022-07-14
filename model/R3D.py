@@ -1,11 +1,16 @@
+import os
+
 import torch
 from torch import nn
 from torchvision import models
 
 class R3D_18(nn.Module):
-    def __init__(self,pretrained=True):
+    def __init__(self, root_path, pretrained=True):
         super(R3D_18, self).__init__()
         self.pretrained = pretrained
+        self.save_model_path = os.path.join(root_path, "models_parameters")
+        if not os.path.exists(self.save_model_path):    # 如果没有这个目录就创建
+            os.mkdir(self.save_model_path)
         if torch.cuda.is_available():
             self.device = "cuda:0"
             print("Using GPU to train...")

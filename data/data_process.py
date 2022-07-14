@@ -6,37 +6,34 @@ import random
 import numpy as np
 import torchvision.transforms as T
 from torch.utils.data import Dataset
-from torchvision.utils import make_grid
-from PIL import Image, ImageShow
+from torch.utils.data import DataLoader
 
 class VideoDataset(Dataset):
-    def __init__(self,root_path,video_size,phase="Train",transform=None):
+    def __init__(self, root_path, video_size, phase="train", transform=None, **kwargs):
         super(VideoDataset, self).__init__()
         self.video_size = video_size
         self.phase = phase
         self.root_path = root_path
         self.transform = transform
-        self.data_path = os.path.join(root_path,phase)
+        self.dataset_path = os.path.join(root_path,phase)
         self.labels = {}
         self.video_names = []
         self.targets = []
         # 检查地址是否正确
-        assert os.path.exists(self.data_path), "Data path {:s} is not exist!".format(self.data_path)
+        assert os.path.exists(self.dataset_path), "Data path {:s} is not exist!".format(self.dataset_path)
         # 检查目录命名形式是否正确
         assert self.checkDir(), "Data dir is incorrect!"
 
         self.labels = self.getLabel()
-        self.video_names , self.targets = self.getVediosAndLabels(self.data_path)
+        self.video_names , self.targets = self.getVediosAndLabels(self.dataset_path)
 
         # 检查视频数量是否等于标签数量
         assert len(self.targets) == len(self.video_names) , "len(Videos) != len(targets) "
-        VideoDataset.mean = [0.43216, 0.394666, 0.37645]
-        VideoDataset.std = [0.22803, 0.22145, 0.216989]
         self.basic_transforms = T.Compose(
             [
                 T.Resize(size = [128, 171]),
                 T.CenterCrop(112),
-                T.Normalize(VideoDataset.mean, VideoDataset.std)
+                T.Normalize(MEAN, STD)
             ]
         )
 
@@ -86,7 +83,7 @@ class VideoDataset(Dataset):
         return frames
     
     def getLabel(self) -> dict:
-        with open(os.path.join(self.root_path, "dataset/violent_classification.json"), 'r') as f:
+        with open(os.path.join(self.root_path, "../dataset/violent_classification.json"), 'r') as f:
             classes = f.read()
             labels = json.loads(classes)
         return labels
@@ -98,19 +95,22 @@ class VideoDataset(Dataset):
                 return False
         return True
 
-    @classmethod
-    def showData(cls,frames:torch.tensor,writer:list,preds=None,target=None):
-        show_frames = frames.permute(0,2,1,3,4)  #convert to 'NTCWH'
-        show_what = ''
-        if preds is not None and target is not None:
-            show_what = "Correct"
-            show_frames = show_frames[preds == target]       # 这里利用了tensor的一些特性
-        for batch in range(show_frames.size(dim=0)):                 # 每个batch画一张图
-            img_batch = np.zeros((show_frames.size(dim=1), 112, 112, 3))    # 'THWC'
-            for frame_num in range(show_frames.size(dim=1)):
-                frame = show_frames[batch][frame_num].numpy()        # 取出每一帧的数据
-                frame = frame.transpose(1,2,0)
-                frame = frame*cls.std + cls.mean
-                frame = torch.from_numpy(np.ceil(frame)).to(torch.uint8)    # 这里打印图片之前必须要将图片转换为uint8，因为打印图片的函数当接收到float类型的图片时会自动给图片乘上225
-                img_batch[frame_num] = frame
-            writer[0].add_images("Show {:s} Frames:[{:s}]".format(show_what,str(batch)),torch.from_numpy(img_batch).to(torch.uint8),dataformats='NHWC')
+def showData(frames: torch.tensor, writer: list, preds=None, target=None):
+    show_frames = frames.permute(0, 2, 1, 3, 4)  #convert to 'NTCWH'
+    show_what = ''
+    if preds is not None and target is not None:
+        show_what = "Correct"
+        show_frames = show_frames[preds == target]       # 这里利用了tensor的一些特性
+    for batch in range(show_frames.size(dim=0)):                 # 每个batch画一张图
+        img_batch = np.zeros((show_frames.size(dim=1), 112, 112, 3))    # 'THWC'
+        for frame_num in range(show_frames.size(dim=1)):
+            frame = show_frames[batch][frame_num].numpy()        # 取出每一帧的数据
+            frame = frame.transpose(1,2,0)
+            frame = frame*STD + MEAN
+            frame = torch.from_numpy(np.ceil(frame)).to(torch.uint8)    # 这里打印图片之前必须要将图片转换为uint8，因为打印图片的函数当接收到float类型的图片时会自动给图片乘上225
+            img_batch[frame_num] = frame
+        writer[0].add_images("Show {:s} Frames:[{:s}]".format(show_what, str(batch)), torch.from_numpy(img_batch).to(torch.uint8), dataformats='NHWC')
+
+
+MEAN = [0.43216, 0.394666, 0.37645]
+STD = [0.22803, 0.22145, 0.216989]
