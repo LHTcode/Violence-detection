@@ -36,8 +36,9 @@ class R3D_18(nn.Module):
             local_time_dir = str(local_time[0]) + '.' + str(local_time[1]) \
                              + '.' + str(local_time[2])
             save_model_path = os.path.join(models_parameters_path, local_time_dir)
-            if not os.path.exists(save_model_path):  # 如果没有这个目录就创建
-                os.mkdir(save_model_path)
+            print(save_model_path)
+            # if not os.path.exists(save_model_path):  # 如果没有这个目录就创建
+            #     os.mkdir(save_model_path)
         elif not self.is_train_phase:
             # 暂时是读取一个时间最新的bestmodel，后续将会读取一个精度最高的modle
             dir_list = os.listdir(models_parameters_path)
