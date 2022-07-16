@@ -38,7 +38,6 @@ def train(model, Dataloader, writer, **kwargs):
     max_precision = 0
     val_epoch = 0
 
-    data_loop = tqdm(Dataloader, total=len(Dataloader))
     epoch_loop = tqdm(range(kwargs['epoches']), total=kwargs['epoches'])
     print("Training...")
     for epoch in epoch_loop:
@@ -50,6 +49,7 @@ def train(model, Dataloader, writer, **kwargs):
             print("Learning rate = {}".format(optim.state_dict()['param_groups'][0]['lr']))
         data_num = 0
         correct_num = 0
+        data_loop = tqdm(Dataloader, total=len(Dataloader))
         for data in data_loop:
             video, target = data
             data_num += video.size(dim=0)

@@ -11,9 +11,6 @@ from torch.utils.tensorboard import SummaryWriter
 import time
 
 
-print(sys.modules)
-
-
 def main():
     # 制作数据集
     root_path = os.path.abspath("../")
@@ -45,7 +42,6 @@ def main():
 
     train_dataset = data_process.VideoDataset(root_path, T_size=trainer_hyperparam['T_size'], phase="train", transform=None, **dataset_setting)
     Dataloader = DataLoader(train_dataset, trainer_hyperparam['batch_size'], shuffle=True)
-    print(len(Dataloader))
     # 开始训练
     local_time = time.localtime()
     local_time_dir = str(local_time[0]) + '.' + str(local_time[1]) \
