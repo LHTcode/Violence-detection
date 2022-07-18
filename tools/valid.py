@@ -1,9 +1,9 @@
+base = os.path.abspath("../")
+sys.path.append(base)
+
 import os
 import sys
 from torch.utils.data import DataLoader
-
-base = os.path.abspath("../")
-sys.path.append(base)
 from data import data_process
 from trainer import common_trainer
 from model.R3D import R3D_18
