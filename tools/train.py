@@ -1,9 +1,9 @@
+base = os.path.abspath("../")
+sys.path.append(base)
+
 import os
 import sys
 from torch.utils.data import DataLoader
-
-base = os.path.abspath("../")
-sys.path.append(base)
 from data import data_process
 from trainer import common_trainer
 from model.R3D import R3D_18
@@ -16,7 +16,7 @@ def main():
     root_path = os.path.abspath("../")
 
     # 制作模型
-    train_model = R3D_18('root_path', pretrained=False)  # 使用训练好的参数作为初始化参数
+    train_model = R3D_18(root_path, pretrained=False)  # 使用训练好的参数作为初始化参数
 
     '''
         dataset有关的设置
