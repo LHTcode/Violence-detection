@@ -46,4 +46,5 @@ class R3D_18(nn.Module):
             dir_list.sort(key=lambda x: (x[0], x[1], x[0]))     # 按照时间顺序降序排列
             lastest_date = '.'.join(dir_list[0])
             save_model_path = os.path.join(models_parameters_path, lastest_date, "best_model.pt")
+            
         return save_model_path
