@@ -1,3 +1,4 @@
+import os
 base = os.path.abspath("../")
 sys.path.append(base)
 
@@ -16,7 +17,7 @@ def main():
     root_path = os.path.abspath("../")
 
     # 制作模型
-    train_model = R3D_18(root_path, pretrained=False)  # 使用训练好的参数作为初始化参数
+    train_model = R3D_18(root_path, pretrained=True)  # 使用训练好的参数作为初始化参数
 
     '''
         dataset有关的设置
