@@ -43,6 +43,12 @@ def valid_model (model,Dataloader):
         correct_num += torch.sum(preds == target)
     precision = correct_num / data_num * 100  # 计算一个epoch下来的精度
     print("Precision = {}%".format(precision))
+    local_time = time.localtime()
+    local_time_dir = str(local_time[0]) + '.' + str(local_time[1]) \
+                     + '.' + str(local_time[2]) + '.' + str(local_time[3]) \
+                     + '.' + str(local_time[4]) + '.' + str(local_time[5])
+    writer = SummaryWriter(log_dir=os.path.join(root_path, "exact_log", local_time_dir))
+   
 
 
 
