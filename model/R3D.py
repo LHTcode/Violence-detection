@@ -47,3 +47,4 @@ class R3D_18(nn.Module):
             lastest_date = '.'.join(dir_list[0])
             save_model_path = os.path.join(models_parameters_path, lastest_date, "best_model.pt")     
         return save_model_path
+        
