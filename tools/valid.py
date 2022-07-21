@@ -48,6 +48,8 @@ def valid_model (model,Dataloader):
                      + '.' + str(local_time[2]) + '.' + str(local_time[3]) \
                      + '.' + str(local_time[4]) + '.' + str(local_time[5])
     writer = SummaryWriter(log_dir=os.path.join(root_path, "exact_log", local_time_dir))
+    writer.add_scalar("test_acc",precision)
+    writer.close()
    
 
 
