@@ -98,7 +98,7 @@ def train(model: dict, Dataloader: dict, writer, **kwargs):
         # ======================== 验证部分 ========================
         if val_count % kwargs["eval_interval"] == 0:
             val_count = 0
-            valid(valid_model, valid_dataloader, writer)
+            valid(valid_model, valid_dataloader, epoch, writer)
             print("\nNow backout to train...")
         val_count += 1
     writer.close()

@@ -12,7 +12,7 @@ from tqdm import tqdm
 # sys.path.append(base)
 
 # 接收模型和数据，进行测试
-def valid(model, Dataloader, writer, **kwargs):
+def valid(model, Dataloader, epoch, writer, **kwargs):
     print("\nValidating...")
     model.eval()
     device = model.device
@@ -33,7 +33,7 @@ def valid(model, Dataloader, writer, **kwargs):
     precision = correct_num / data_num * 100  # 计算一个epoch下来的精度
     print("\nValid Precision = {}%".format(precision))
     # 记录precision
-    writer.add_scalar("Valid/Precision", precision)
+    writer.add_scalar("Valid/Precision", precision, epoch)
     writer.close()
 
 
