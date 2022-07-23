@@ -5,3 +5,4 @@
 *.pt
 events.out*
 *.cpython-39.pyc
+*.pyc
