@@ -11,14 +11,14 @@ from model.R3D import R3D_18
 from torch.utils.tensorboard import SummaryWriter
 import time
 import torch
+from tqdm import tqdm
 
 
 #接收模型和数据，进行测试
-def valid_model (model,Dataloader,writer):
+def valid_model (model,Dataloader,writer,**kwargs):
     print("Validating...")
     #模型的路径
     root_path = os.path.abspath("../")
-    # model_path = root_path+"./models_parameters/2022.7.16/best_model.pt"
     model_dir = "models_parameters"
     model_subfolder = "2022.7.16"
     model_name = "best_model.pt"
@@ -29,26 +29,28 @@ def valid_model (model,Dataloader,writer):
     model_dict = torch.load(model_path, map_location=torch.device(device))
     model.load_state_dict(model_dict["state_dict"])
 
+    data_loop = tqdm(Dataloader, total=len(Dataloader))
+    epoch_loop = tqdm(range(kwargs['epoches']), total=kwargs['epoches'])
     #进行验证
     data_num = 0
     correct_num = 0
-    for data in Dataloader:
-        #视频对应的原标签
-        video, target = data
-        print("target",target)
-        data_num += video.size(dim=0)
-        target = torch.tensor(target)
-
-        with torch.set_grad_enabled(False):
-            # 计算输出
-            output = model(video)
-        _, preds = torch.max(output, dim=1)
-        correct_num += torch.sum(preds == target)
-    precision = correct_num / data_num * 100  # 计算一个epoch下来的精度
-    print("Precision = {}%".format(precision))
-
-    #记录precision
-    writer.add_scalar("test_acc", precision)
+    for epoch in epoch_loop:
+        print("Epoch:{:}".format(epoch))
+        for data in data_loop:
+            #视频对应的原标签
+            video, target = data
+            # print("target",target)
+            data_num += video.size(dim=0)
+            target = torch.tensor(target)
+            with torch.set_grad_enabled(False):
+                # 计算输出
+                output = model(video)
+            _, preds = torch.max(output, dim=1)
+            correct_num += torch.sum(preds == target)
+        precision = correct_num / data_num * 100  # 计算一个epoch下来的精度
+        print("Precision = {}%".format(precision))
+        #记录precision
+        writer.add_scalar("{:s}/Precision".format("Valid"), precision, epoch)
     writer.close()
 
 
@@ -82,4 +84,4 @@ if __name__ == "__main__":
     writer = SummaryWriter(log_dir=os.path.join(root_path, "runs_log", local_time_dir))
 
     #调用函数进行验证
-    valid_model(model,Dataloader,writer)
+    valid_model(model,Dataloader,writer,**valider_hyperparam)
