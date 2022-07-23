@@ -6,3 +6,6 @@
 events.out*
 *.cpython-39.pyc
 *.pyc
+build/
+dist/
+*egg-info/
