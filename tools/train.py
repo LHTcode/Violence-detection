@@ -1,4 +1,9 @@
 import os
+import sys
+
+base = os.path.abspath("../")
+sys.path.append(base)
+
 
 from torch.utils.data import DataLoader
 from data import data_process
@@ -6,6 +11,7 @@ from trainer import common_trainer
 from model.R3D import R3D_18
 from torch.utils.tensorboard import SummaryWriter
 import time
+
 
 def main():
     # 制作数据集
