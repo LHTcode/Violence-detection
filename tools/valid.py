@@ -63,8 +63,6 @@ if __name__ == "__main__":
         "dataset_name": "RWF-2000"}
     root_path = os.path.abspath("../")
     valider_hyperparam = {
-        # 'lr': 1.3e-3,
-        # 'layers_need_to_train': 0,
         'epoches': 10,
         'T_size': 8,  # 3D卷积的时间维度大小; 目前这个参数的动态调参功能还没写，处于[不可更改状态]
         'batch_size': 8,
