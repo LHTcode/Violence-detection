@@ -6,6 +6,10 @@ import torchvision
 import itertools
 from model.R3D import R3D_18
 from data import data_process
+import sys
+
+# base = os.path.abspath("../")
+# sys.path.append(base)
 
 # 简单的推理端
 @torch.no_grad()        # 禁用此函数的梯度计算
@@ -95,5 +99,4 @@ if __name__ == '__main__':
         "input_video_name": "input.avi",
         "output_video_name": "output.avi"
     }
-    # inference_model(input_video_path, model, vedio_size)
     inference_and_draw(root_path, input_video_path, inference_model, vedio_size, **dataset_setting)
