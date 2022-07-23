@@ -2,14 +2,14 @@ import torch
 from torch.optim import Adam
 from torch import nn
 import os
-import time
+from tools.valid import valid
 from data import data_process
 from tqdm import tqdm
 
 # 设置需要训练的参数
 def setParam(model, layers_need_to_train):
     param_need_to_train = []
-    print("Params need to learn:")
+    print("\nParams need to learn:")
     if layers_need_to_train == 1:
         for name, param in model.named_parameters():
             if name == "model.fc.weight" or name == "model.fc.bias":
@@ -28,28 +28,34 @@ def setParam(model, layers_need_to_train):
         print('\n')
     return param_need_to_train
 
-def train(model, Dataloader, writer, **kwargs):
-    print("Parametres setting...")
-    param_need_to_train = setParam(model, kwargs['layers_need_to_train'])
+def train(model: dict, Dataloader: dict, writer, **kwargs):
+    #===================== init =====================
+    train_model = model["train"]
+    valid_model = model["valid"]
+    train_dataloader = Dataloader["train"]
+    valid_dataloader = Dataloader["valid"]
+    print("\nParametres setting...")
+    param_need_to_train = setParam(train_model, kwargs['layers_need_to_train'])
     # 制作损失函数和优化器
     loss_func = nn.CrossEntropyLoss()
     optim = Adam(param_need_to_train, kwargs['lr'])
     train_count = 0  # 用于计算runtime_loss和输出图像
     max_precision = 0
-    val_epoch = 0
+    val_count = 1
 
     epoch_loop = tqdm(range(kwargs['epoches']), total=kwargs['epoches'])
-    print("Training...")
+    #===================== train =====================
+    print("\nTraining...")
     for epoch in epoch_loop:
-        print("Epoch:{:}".format(epoch))
+        print("\nEpoch:{:}".format(epoch))
         runtime_loss = 0
         precision = 0
         with torch.enable_grad():
-            model.train()
+            train_model.train()
             print("Learning rate = {}".format(optim.state_dict()['param_groups'][0]['lr']))
         data_num = 0
         correct_num = 0
-        data_loop = tqdm(Dataloader, total=len(Dataloader))
+        data_loop = tqdm(train_dataloader, total=len(train_dataloader))
         for data in data_loop:
             video, target = data
             data_num += video.size(dim=0)
@@ -59,7 +65,7 @@ def train(model, Dataloader, writer, **kwargs):
             optim.zero_grad()
             with torch.set_grad_enabled(True):
                 # 计算输出
-                output = model(video)
+                output = train_model(video)
                 # 计算损失
                 loss = loss_func(output, target)
                 # 迭代和更新
@@ -69,7 +75,7 @@ def train(model, Dataloader, writer, **kwargs):
                 runtime_loss += loss
             if (train_count % 5 == 0):  # 每5次迭代输出一次平均loss
                 writer.add_scalar("Train/Loss", runtime_loss, train_count )
-                print("runtime_loss={}".format(runtime_loss / 5))
+                print("\nruntime_loss={}".format(runtime_loss / 5))
                 runtime_loss = 0
             _, preds = torch.max(output, dim=1)
             # 展示正确识别的图片
@@ -77,13 +83,22 @@ def train(model, Dataloader, writer, **kwargs):
             correct_num += torch.sum(preds == target)
         # 计算精度
         precision = correct_num / data_num * 100        # 计算一个epoch下来的精度
-        print("Precision = {}%".format(precision))
         # 更新最优参数
-        state = {
-            "state_dict": model.state_dict(),
-            **kwargs
-        }
-
-        torch.save(state, os.path.join(model.save_model_path, "best_model.pt"))
-        writer.add_scalar("{:s}/Precision".format("Train"), precision, epoch)
+        if precision >= max_precision:
+            print("\nSaving new model...")
+            max_precision = precision
+            state = {
+                "state_dict": train_model.state_dict(),
+                **kwargs
+            }
+            torch.save(state, os.path.join(train_model.save_model_path, "best_model.pt"))
+            print("\nSuccess!")
+        print("\nTrain Precision = {}%".format(precision))
+        writer.add_scalar("Train/Precision", precision, epoch)
+        # ======================== 验证部分 ========================
+        if val_count % kwargs["eval_interval"] == 0:
+            val_count = 0
+            valid(valid_model, valid_dataloader, writer)
+            print("\nNow backout to train...")
+        val_count += 1
     writer.close()
