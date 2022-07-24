@@ -91,7 +91,7 @@ def train(model: dict, Dataloader: dict, writer, **kwargs):
                 "state_dict": train_model.state_dict(),
                 **kwargs
             }
-            torch.save(state, os.path.join(train_model.save_model_path))
+            torch.save(state,train_model.save_model_path)
             print("\nSuccess!")
         print("\nTrain Precision = {}%".format(precision))
         writer.add_scalar("Train/Precision", precision, epoch)
