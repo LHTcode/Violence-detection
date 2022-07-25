@@ -42,6 +42,7 @@ class R3D_18(nn.Module):
             else:
                 os.mkdir(save_model_dir)
                 os.mkdir(save_model_path)
+            save_model_path = os.path.join(save_model_path, "best_model.pt")
         elif not self.is_train_phase:
             # 暂时是读取一个时间最新的bestmodel，后续将会读取一个精度最高的modle
             dir_list = os.listdir(models_parameters_path)

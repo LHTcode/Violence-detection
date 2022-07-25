@@ -33,14 +33,14 @@ def main():
     trainer_hyperparam = {
         'lr': 1.3e-3,
         'layers_need_to_train': 0,
-        'epoches': 10,
+        'epoches': 30,
         'T_size': 8,     # 3D卷积的时间维度大小; 目前这个参数的动态调参功能还没写，处于[不可更改状态]
         'batch_size': 8,
         'eval_interval': 3  # 验证间隔，如果设置为1则代表每一次训练的epoch后面都验证一次
     }
     valid_hyperparam = {
         'T_size': 8,
-        'batch_size': 8,
+        'batch_size': 15,
     }
 
     dataset = {x: data_process.VideoDataset(root_path, T_size=y, phase=x, transform=None, **dataset_setting)
