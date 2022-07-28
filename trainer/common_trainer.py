@@ -39,6 +39,7 @@ def train(model: dict, Dataloader: dict, writer, **kwargs):
     # 制作损失函数和优化器
     loss_func = nn.CrossEntropyLoss()
     optim = Adam(param_need_to_train, kwargs['lr'])
+    scheduler = optim.lr_scheduler.StepLR(optim, kwargs[step_size], kwargs[gamma])  # 学习率每7个epoch衰减成原来的1/10
     train_count = 0  # 用于计算runtime_loss和输出图像
     max_precision = 0
     val_count = 1
@@ -81,6 +82,7 @@ def train(model: dict, Dataloader: dict, writer, **kwargs):
             # 展示正确识别的图片
             data_process.showData(video, [writer], preds, target)
             correct_num += torch.sum(preds == target)
+        scheduler.step() #更新学习率
         # 计算精度
         precision = correct_num / data_num * 100        # 计算一个epoch下来的精度
         # 更新最优参数
