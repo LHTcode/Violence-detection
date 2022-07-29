@@ -32,6 +32,8 @@ def main():
     '''
     trainer_hyperparam = {
         'lr': 1.3e-3,
+        'step_size':10,
+        'gamma':0.1,
         'layers_need_to_train': 0,
         'epoches': 30,
         'T_size': 8,     # 3D卷积的时间维度大小; 目前这个参数的动态调参功能还没写，处于[不可更改状态]
