@@ -1,7 +1,6 @@
 import torch
 from torch.optim import Adam
 from torch import nn
-import os
 from tools.valid import valid
 from data import data_process
 from tqdm import tqdm
@@ -39,7 +38,7 @@ def train(model: dict, Dataloader: dict, writer, **kwargs):
     # 制作损失函数和优化器
     loss_func = nn.CrossEntropyLoss()
     optim = Adam(param_need_to_train, kwargs['lr'])
-    scheduler = optim.lr_scheduler.StepLR(optim, kwargs[step_size], kwargs[gamma])  # 学习率每7个epoch衰减成原来的1/10
+    scheduler = torch.optim.lr_scheduler.StepLR(optim, kwargs['step_size'], kwargs['gamma'])  # 学习率每7个epoch衰减成原来的1/10
     train_count = 0  # 用于计算runtime_loss和输出图像
     max_precision = 0
     val_count = 1

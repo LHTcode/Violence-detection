@@ -9,3 +9,4 @@ events.out*
 build/
 dist/
 *egg-info/
+.idea/*
