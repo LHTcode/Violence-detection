@@ -17,8 +17,8 @@ class R3D_18(nn.Module):
             print("Using GPU...")
         else:
             self.device = "cpu"
-            raise RuntimeError("Can't use cuda")    # 我的电脑用不了cpu训练
-            # print("Using CPU to train...")
+            # raise RuntimeError("Can't use cuda")    # 我的电脑用不了cpu训练
+            print("Using CPU...")
         self.model = models.video.r3d_18(pretrained=self.pretrained,progress=True).to(torch.float64).to(self.device)
         self.model.fc = nn.Linear(self.model.fc.in_features,2,True).to(torch.float64).to(self.device)
 
